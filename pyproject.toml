@@ -29,9 +29,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/husky84/AI-desktop-pets"
-Repository = "https://github.com/husky84/AI-desktop-pets"
-Issues = "https://github.com/husky84/AI-desktop-pets/issues"
+Homepage = "https://github.com/Husky84/AI-desktop-pets"
+Repository = "https://github.com/Husky84/AI-desktop-pets"
+Issues = "https://github.com/Husky84/AI-desktop-pets/issues"
 
 # 装完之后任意终端敲 ai-deskpet 就能启动（等价于 python main.py）
 [project.scripts]

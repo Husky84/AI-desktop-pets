@@ -20,7 +20,7 @@
 ### 方式一：一键启动（推荐）
 
 ```bash
-git clone https://github.com/husky84/AI-desktop-pets.git
+git clone https://github.com/Husky84/AI-desktop-pets.git
 cd AI-desktop-pets
 ```
 
