@@ -1,0 +1,27 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# ---- 用户自己的配置 ----
+# 首次运行会自动从 config.example.json 生成 config.json
+config.json
+
+# ---- 运行时产物 / 临时文件 ----
+*.log
+*.out
+_*.png
+_*.py
+
+# ---- 素材压缩包（内容与 assets/ 目录重复，无需入库）----
+assets/*.zip
+
+# ---- 系统 ----
+.DS_Store
+Thumbs.db
+desktop.ini

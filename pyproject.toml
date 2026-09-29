@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-deskpet"
+version = "0.1.0"
+description = "接入本地大模型的 AI 桌宠：透明置顶窗口 + 序列帧动画 + 流式聊天"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "ai-deskpet contributors" }]
+keywords = ["desktop-pet", "llm", "ollama", "lm-studio", "pyside6", "ai"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: X11 Applications :: Qt",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Desktop Environment",
+]
+dependencies = [
+    "PySide6>=6.5",
+    "requests>=2.31",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-name/ai-deskpet"
+Repository = "https://github.com/your-name/ai-deskpet"
+
+# 装完之后任意终端敲 ai-deskpet 就能启动（等价于 python main.py）
+[project.scripts]
+ai-deskpet = "main:main"
+
+[tool.setuptools]
+py-modules = ["main", "pet", "chat", "ai_client"]

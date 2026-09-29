@@ -1,0 +1,17 @@
+# 统一换行符，避免跨平台 checkout 后脚本跑不起来。
+#
+# 注意：run.bat 里的探测逻辑故意不写 call :label（LF-only 时 cmd 的
+# 标签扫描会错位，表现为一堆 "'mport' is not recognized"），所以它对
+# 换行符本身不敏感；这里设 eol=crlf 主要是让 Windows 用户编辑起来舒服。
+# .sh 则必须 LF：CRLF 会报 bad interpreter: /bin/bash^M
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.sh  text eol=lf
+
+# 二进制资源别动
+*.png  binary
+*.jpg  binary
+*.ico  binary
+*.zip  binary
+*.gguf binary
