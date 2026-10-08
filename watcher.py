@@ -331,6 +331,7 @@ class ScreenWatcher(QObject):
             if manual:
                 self.error.emit("截屏失败了，可能被系统拦住了")
             return
+        print(f"[桌宠] 视觉点评：截屏 {w}x{h}（{len(b64)//1024}KB），交给模型…")
 
         if manual:
             self.comment.emit("让我看看你在干嘛……")
