@@ -87,13 +87,15 @@ class _VisionWorker(QThread):
     done = Signal(str)
     failed = Signal(str)
 
-    def __init__(self, client, image_b64, prompt, system_prompt=None, max_tokens=200):
+    def __init__(self, client, image_b64, prompt, system_prompt=None, max_tokens=200,
+                 profile=None):
         super().__init__()
         self.client = client
         self.image_b64 = image_b64
         self.prompt = prompt
         self.system_prompt = system_prompt
         self.max_tokens = max_tokens
+        self.profile = profile
 
     def run(self):
         try:
@@ -101,6 +103,7 @@ class _VisionWorker(QThread):
                 self.image_b64, self.prompt,
                 system_prompt=self.system_prompt,
                 max_tokens=self.max_tokens,
+                profile=self.profile,
             )
             self.done.emit((text or "").strip())
         except Exception as e:  # noqa: BLE001
@@ -124,12 +127,15 @@ class ScreenWatcher(QObject):
         self.poll_seconds = max(5, int(w.get("poll_seconds", 15)))
         self.min_gap = max(20, int(w.get("min_gap_seconds", 150)))
         self.vision_on = bool(w.get("vision", True))
-        self.vision_interval = max(30, int(w.get("vision_interval_seconds", 300)))
+        self.vision_interval = max(15, int(w.get("vision_interval_seconds", 300)))
         self.max_width = int(w.get("max_width", 1024))
         self.extra_private = [str(k).lower() for k in (w.get("blacklist") or [])]
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self.tick)
+        # 视觉层用独立定时器：节奏精确，不受采样间隔影响
+        self._vision_timer = QTimer(self)
+        self._vision_timer.timeout.connect(self._vision_tick)
         self._worker = None
         self._last_comment = 0.0
         # 从启动时刻起算，避免刚开机就截图点评（想立刻看可以点右键菜单）
@@ -150,12 +156,23 @@ class ScreenWatcher(QObject):
         if not self.enabled:
             print("[桌宠] 屏幕观察已关闭（config 里 watch.enabled）")
             return
+        # 没有任何支持视觉的来源时，直接退回轻量层，别每次白试
+        if self.vision_on and hasattr(self.client, "vision_profile_name"):
+            name = self.client.vision_profile_name()
+            if name is None:
+                self.vision_on = False
+                print("[桌宠] 没有支持视觉的模型来源，视觉层已关闭（只用窗口标题陪你）")
+            else:
+                print(f"[桌宠] 视觉层使用来源：{name}")
         self._timer.start(self.poll_seconds * 1000)
+        if self.vision_on:
+            self._vision_timer.start(self.vision_interval * 1000)
         print(f"[桌宠] 屏幕观察已启动：每 {self.poll_seconds}s 采样，"
-              f"视觉点评间隔 {self.vision_interval}s")
+              f"视觉点评每 {self.vision_interval}s 一次")
 
     def stop(self):
         self._timer.stop()
+        self._vision_timer.stop()
 
     def shutdown(self):
         """程序退出时收尾：等视觉线程结束，避免 QThread 被销毁时还在运行。"""
@@ -257,11 +274,27 @@ class ScreenWatcher(QObject):
                 self._update_context(snap, mins)
                 return
 
-        # ---- 视觉点评（更长的冷却）----
-        if self.vision_on and idle < 120 and (now - self._last_vision) >= self.vision_interval:
-            self.look_now()
-
+        # ---- 视觉点评由独立的 _vision_tick 负责（节奏精确）----
         self._update_context(snap, mins)
+
+    def _vision_tick(self):
+        """视觉层定时器：到点就截屏交给模型点评。
+
+        这些情况下跳过：总开关关了 / 视觉关了 / 正在分析上一次 /
+        桌宠自己的窗口 / 隐私窗口 / 用户不在（空闲超过 2 分钟）。
+        """
+        if not self.enabled or not self.vision_on:
+            return
+        if self._worker is not None and self._worker.isRunning():
+            return
+        if time.time() - self._last_vision < 5:      # 刚手动看过，别重复
+            return
+        snap = self._sample()
+        if snap.get("self") or snap.get("private"):
+            return
+        if snap.get("idle", 0) > 120:
+            return
+        self.look_now()
 
     def _update_context(self, snap, mins):
         ctx = self._context_text(snap, mins)
@@ -331,7 +364,8 @@ class ScreenWatcher(QObject):
             if manual:
                 self.error.emit("截屏失败了，可能被系统拦住了")
             return
-        print(f"[桌宠] 视觉点评：截屏 {w}x{h}（{len(b64)//1024}KB），交给模型…")
+        print(f"[桌宠] {time.strftime('%H:%M:%S')} 视觉点评：截屏 {w}x{h}"
+              f"（{len(b64)//1024}KB），交给模型…")
 
         if manual:
             self.comment.emit("让我看看你在干嘛……")
@@ -339,7 +373,8 @@ class ScreenWatcher(QObject):
         self.busy_changed.emit(True)
 
         self._worker = _VisionWorker(self.client, b64, VISION_PROMPT,
-                                     system_prompt=None, max_tokens=200)
+                                     system_prompt=None, max_tokens=200,
+                                     profile=self.client.vision_profile_name())
         self._worker.done.connect(self._on_vision_done)
         self._worker.failed.connect(self._on_vision_failed)
         self._worker.start()

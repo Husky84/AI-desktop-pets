@@ -1,17 +1,36 @@
 {
   "ai": {
-    "api_format": "ollama",
-    "base_url": "http://localhost:11434",
-    "model": "qwen2.5:7b",
-    "api_key": "",
-    "fallbacks": [
-      {
+    "active": "local",
+    "vision_profile": "local",
+
+    "profiles": {
+      "local": {
+        "api_format": "ollama",
+        "base_url": "http://localhost:11434",
+        "model": "qwen2.5:7b",
+        "api_key": "",
+        "vision": false,
+        "fallbacks": [
+          {
+            "api_format": "openai",
+            "base_url": "http://127.0.0.1:1234/v1",
+            "model": "你的模型名",
+            "api_key": "not-needed",
+            "vision": true,
+            "extra_body": { "reasoning_effort": "none" }
+          }
+        ]
+      },
+
+      "api": {
         "api_format": "openai",
-        "base_url": "http://127.0.0.1:1234/v1",
-        "model": "你的模型名",
-        "api_key": "not-needed"
+        "base_url": "https://api.deepseek.com/v1",
+        "model": "deepseek-chat",
+        "api_key_env": "DEEPSEEK_API_KEY",
+        "vision": false
       }
-    ],
+    },
+
     "system_prompt": "你是小团子，一只住在用户电脑桌面上的猫娘桌宠。你性格活泼、温柔、有点好奇，喜欢陪用户聊天。说话简短口语化（一般不超过60个字），语气轻松可爱，可以偶尔使用颜文字，比如 (^_^) 或 (oωo)。不要使用 Markdown 格式，不要输出长篇大论，直接给结论不要展开推理。",
     "temperature": 0.8,
     "max_tokens": 400,
@@ -22,7 +41,7 @@
     "poll_seconds": 15,
     "min_gap_seconds": 150,
     "vision": true,
-    "vision_interval_seconds": 300,
+    "vision_interval_seconds": 60,
     "max_width": 1024,
     "blacklist": []
   },

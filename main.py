@@ -233,6 +233,22 @@ def main():
     app.aboutToQuit.connect(watcher.shutdown)   # 退出时等后台线程收尾
     app.aboutToQuit.connect(chat.shutdown)
 
+    # ---- 模型来源切换：本地模型 <-> 云端 API ----
+    def _on_profile_changed(name):
+        pet.react(f"好，接下来用「{name}」陪你 (^_^)")
+        try:                                     # 记住选择，下次启动还用这个
+            if CONFIG_PATH and Path(CONFIG_PATH).exists():
+                data = json.loads(Path(CONFIG_PATH).read_text(encoding="utf-8"))
+                data.setdefault("ai", {})["active"] = name
+                Path(CONFIG_PATH).write_text(
+                    json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+                    encoding="utf-8")
+                print(f"[桌宠] 已把默认模型来源写回 {CONFIG_PATH}")
+        except Exception as e:  # noqa: BLE001
+            print("[桌宠] 保存模型来源失败：", e)
+
+    pet.profile_changed.connect(_on_profile_changed)
+
     # 注意：greet() 会 emit ai_greet_requested，必须放在上面 connect 之后调用，
     # 否则启动时的 AI 问候没人接收（这个顺序踩过一次坑）。
     pet.greet()

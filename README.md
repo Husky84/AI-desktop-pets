@@ -61,15 +61,60 @@ python main.py --config 路径   # 或指定配置文件
 
 | 字段 | 含义 |
 | --- | --- |
-| `ai.api_format` | `"ollama"` 或 `"openai"`（OpenAI 兼容接口） |
-| `ai.base_url` | Ollama：`http://localhost:11434`；OpenAI 兼容：`http://localhost:1234/v1` |
-| `ai.model` | 模型名，如 `qwen2.5:7b`、`qwen3.8-27b-gsq-rco` |
-| `ai.api_key` | 本地服务随便填个占位符（如 `not-needed`），留空则不发 Authorization 头 |
-| `ai.fallbacks` | 备用端点列表，主端点连不上自动切换并记住可用的那个 |
-| `ai.extra_body` | 提供方特有参数，会并入请求体（如关闭思考） |
+| `ai.active` | 默认使用哪个模型来源（`profiles` 里的名字），右键菜单可随时切换 |
+| `ai.profiles` | **模型来源列表**：本地 / 云端 API 各自一份配置，见下节 |
+| `ai.vision_profile` | 看图用哪个来源（不填就跟 `active`；用来实现"聊天走云端、看图走本地"）|
 | `ai.system_prompt` | 人设提示词（小团子的性格） |
 | `ai.temperature` | 温度，越高越放飞 |
 | `ai.max_tokens` | 单次回复最大 token 数 |
+
+每个来源（profile）里可以写：
+
+| 字段 | 含义 |
+| --- | --- |
+| `api_format` | `"ollama"`（Ollama 原生）或 `"openai"`（OpenAI 兼容，绝大多数都支持） |
+| `base_url` | 本地如 `http://127.0.0.1:1234/v1`；云端如 `https://api.deepseek.com/v1` |
+| `model` | 模型名，如 `qwen2.5:7b`、`deepseek-chat` |
+| `api_key` | 密钥（本地服务随便填占位符如 `not-needed`）|
+| `api_key_env` | 或者只写**环境变量名**（如 `DEEPSEEK_API_KEY`），密钥就不落在配置文件里 |
+| `vision` | 这个来源能不能看图；`false` 时视觉层会自动改用它之外的来源 |
+| `proxy` | 该来源专用的代理，如 `http://127.0.0.1:7892`（默认直连）|
+| `extra_body` | 提供方特有参数，并入请求体（如关闭思考）|
+| `fallbacks` | 备用端点，主端点连不上自动切换并记住可用的那个 |
+
+### 模型来源：本地 或 云端 API
+
+配好之后，**右键桌宠 → 🤖 模型来源** 就能切换，选择会写回 `config.json` 的 `ai.active`，下次启动沿用。
+
+```json
+"ai": {
+  "active": "local",
+  "vision_profile": "local",
+  "profiles": {
+    "local": {
+      "api_format": "openai",
+      "base_url": "http://127.0.0.1:1234/v1",
+      "model": "qwen3.8-27b-gsq-rco",
+      "api_key": "not-needed",
+      "vision": true,
+      "extra_body": { "reasoning_effort": "none" }
+    },
+    "deepseek": {
+      "api_format": "openai",
+      "base_url": "https://api.deepseek.com/v1",
+      "model": "deepseek-chat",
+      "api_key_env": "DEEPSEEK_API_KEY",
+      "vision": false
+    }
+  }
+}
+```
+
+> 💡 `vision: false` 的妙用：云端的 `deepseek-chat` 看不了图，所以上面把
+> `vision_profile` 固定成 `local` —— **聊天走云端（快、便宜），看图仍走本地（免费、隐私）**。
+> 反过来也行：本地聊天 + 云端视觉。
+
+> 旧版的扁平写法（顶层直接写 `base_url` / `model` / `fallbacks`）仍然兼容，会被当成一个叫 `default` 的来源。
 | `pet.name` | 小猫的名字 |
 | `pet.auto_walk` | 是否自动闲逛 |
 | `pet.bubble_seconds` | 气泡显示秒数 |
@@ -98,7 +143,7 @@ python main.py --config 路径   # 或指定配置文件
 | `watch.poll_seconds` | 采样间隔，默认 15 秒（只读窗口标题，开销可忽略） |
 | `watch.min_gap_seconds` | 两次主动搭话的最小间隔，防话痨，默认 150 秒 |
 | `watch.vision` | 是否允许看截图（需要模型支持视觉；关掉就只用窗口标题） |
-| `watch.vision_interval_seconds` | 视觉点评的最小间隔，默认 300 秒 |
+| `watch.vision_interval_seconds` | 视觉点评间隔，默认 300 秒（独立定时器精确触发，最小 15 秒）|
 | `watch.max_width` | 截图缩放到的宽度，默认 1024（越小越快、越省显存） |
 | `watch.blacklist` | 追加的隐私关键词，命中的窗口不截图（内置已含密码/银行/支付等） |
 
@@ -108,8 +153,8 @@ python main.py --config 路径   # 或指定配置文件
 
 | 层 | 做什么 | 开销 |
 | --- | --- | --- |
-| 轻量层 | 读前台进程名 / 窗口标题 / 键鼠空闲时间，归到 写代码·浏览·看视频·游戏·文档·聊天·设计 | 几乎为零 |
-| 视觉层 | 截图（缩放后）交给**本地**视觉模型，让它以桌宠口吻点评 | 每 5 分钟最多一次 |
+| 轻量层 | 读前台进程名 / 窗口标题 / 键鼠空闲时间，归到 写代码·浏览·看视频·游戏·文档·聊天·设计 | 几乎为零，每 `poll_seconds` 一次 |
+| 视觉层 | 截图（缩放后）交给视觉模型，让它以桌宠口吻点评 | 独立定时器，严格每 `vision_interval_seconds` 一次 |
 
 触发反馈的场景：
 

@@ -200,7 +200,11 @@ class ChatWindow(QWidget):
             self._add_bubble("assistant", "")
         self._cur_label.setText(
             "😿 模型请求失败了：" + str(err)
-            + "\n\n请确认：1) Ollama / LM Studio 已启动 2) config.json 里 model 名字正确"
+            + "\n\n可以检查："
+            + "\n1) 本地服务是否启动（Ollama / LM Studio）"
+            + "\n2) config.json 里 model 名字对不对"
+            + "\n3) 用云端 API 的话，api_key / api_key_env 环境变量配了没"
+            + "\n（右键桌宠 → 🤖 模型来源，可以切换本地 / 云端）"
         )
         self._finish("")
 

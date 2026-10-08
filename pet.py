@@ -145,6 +145,7 @@ class PetWindow(QWidget):
     # 信号：请求 AI 问候 / 收到 AI 问候（后台线程不阻塞界面）
     ai_greet_requested = Signal()
     ai_greet_reply = Signal(str)
+    profile_changed = Signal(str)   # 切换了模型来源（本地 / 云端 API）
 
     def __init__(self, cfg: dict):
         super().__init__()
@@ -398,6 +399,14 @@ class PetWindow(QWidget):
         on = w.toggle()
         self.bubble("开始盯着你啦 (oωo)" if on else "好，我不看啦，需要时再叫我~")
 
+    def switch_profile(self, name):
+        """菜单：切换模型来源（本地模型 / 云端 API）。"""
+        self._touch()
+        if self.client is None or name == self.client.active_profile:
+            return
+        if self.client.use_profile(name):
+            self.profile_changed.emit(name)
+
     # ================= 交互 =================
     def mousePressEvent(self, e):
         self._touch()
@@ -442,6 +451,15 @@ class PetWindow(QWidget):
             menu.addAction("👀 看看我在干嘛", self.look_screen)
             menu.addAction("🔕 停止观察" if self.watcher.enabled else "👁 开始观察",
                            self.toggle_watch)
+        if self.client is not None:
+            names = self.client.profile_names()
+            if len(names) > 1:
+                pm = menu.addMenu("🤖 模型来源")
+                for name in names:
+                    act = pm.addAction(name)
+                    act.setCheckable(True)
+                    act.setChecked(name == self.client.active_profile)
+                    act.triggered.connect(lambda _=False, n=name: self.switch_profile(n))
         if not self._sprites:
             theme_menu = menu.addMenu("🎨 配色（代码小猫）")
             for key, label in (("cream", "🍦 奶油"), ("mint", "🌿 薄荷"),
