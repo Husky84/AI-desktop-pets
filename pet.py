@@ -172,6 +172,7 @@ class PetWindow(QWidget):
 
         self.chat_win = None
         self.client = None
+        self.watcher = None
         self.history = []          # 最近的对话 [{"role": ..., "content": ...}]
 
         # 状态机
@@ -314,6 +315,10 @@ class PetWindow(QWidget):
     def set_client(self, client):
         self.client = client
 
+    def set_watcher(self, watcher):
+        """接入屏幕观察者（可以为 None，表示不开启该功能）。"""
+        self.watcher = watcher
+
     def greet(self):
         """启动时的问候。"""
         self._be_happy(2.5)
@@ -359,6 +364,40 @@ class PetWindow(QWidget):
             self.set_mood("idle")
         self.bubble("走动：" + ("开" if self.auto_walk else "关"))
 
+    # ================= 屏幕观察相关 =================
+    def react(self, text, seconds=None):
+        """对外主动反馈：睡着就叫醒，然后冒个泡。"""
+        if self.mood == "sleep":
+            self.set_mood("idle")
+        self._be_happy(1.2)
+        self.bubble(text, seconds)
+
+    def set_busy(self, busy):
+        """正在分析（切思考动作，但不覆盖气泡文字）。"""
+        if busy:
+            self.set_mood("thinking")
+        elif self.mood == "thinking":
+            self.set_mood("idle")
+
+    def look_screen(self):
+        """菜单：立刻看一眼屏幕并点评。"""
+        self._touch()
+        w = getattr(self, "watcher", None)
+        if w is None:
+            self.bubble("我还没开这个能力呢~")
+            return
+        w.enabled = True
+        w.look_now(manual=True)
+
+    def toggle_watch(self):
+        """菜单：开关屏幕观察。"""
+        self._touch()
+        w = getattr(self, "watcher", None)
+        if w is None:
+            return
+        on = w.toggle()
+        self.bubble("开始盯着你啦 (oωo)" if on else "好，我不看啦，需要时再叫我~")
+
     # ================= 交互 =================
     def mousePressEvent(self, e):
         self._touch()
@@ -398,6 +437,11 @@ class PetWindow(QWidget):
         else:
             menu.addAction("💤 睡一会儿", self.sleep_now)
         menu.addAction("🚶 走动 开/关", self.toggle_walk)
+        if getattr(self, "watcher", None) is not None:
+            menu.addSeparator()
+            menu.addAction("👀 看看我在干嘛", self.look_screen)
+            menu.addAction("🔕 停止观察" if self.watcher.enabled else "👁 开始观察",
+                           self.toggle_watch)
         if not self._sprites:
             theme_menu = menu.addMenu("🎨 配色（代码小猫）")
             for key, label in (("cream", "🍦 奶油"), ("mint", "🌿 薄荷"),

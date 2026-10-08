@@ -17,6 +17,15 @@
     "max_tokens": 400,
     "extra_body": {}
   },
+  "watch": {
+    "enabled": true,
+    "poll_seconds": 15,
+    "min_gap_seconds": 150,
+    "vision": true,
+    "vision_interval_seconds": 300,
+    "max_width": 1024,
+    "blacklist": []
+  },
   "pet": {
     "name": "小团子",
     "auto_walk": true,

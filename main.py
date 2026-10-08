@@ -22,6 +22,7 @@ from PySide6.QtWidgets import QApplication
 from ai_client import LocalAIClient
 from chat import ChatWindow
 from pet import PetWindow
+from watcher import ScreenWatcher
 
 DEFAULT_CFG = {
     "ai": {
@@ -220,6 +221,17 @@ def main():
         lambda: threading.Thread(target=_do_ai_greet, daemon=True).start()
     )
     notifier.greet_ok.connect(pet.apply_greet_reply)
+
+    # ---- 屏幕观察：让桌宠知道你正在干什么 ----
+    watcher = ScreenWatcher(cfg, client)
+    pet.set_watcher(watcher)
+    watcher.comment.connect(pet.react)                   # 主动冒泡反馈
+    watcher.context_changed.connect(client.set_context)  # 聊天时它"知道"你在干嘛
+    watcher.busy_changed.connect(pet.set_busy)           # 分析中切思考动作
+    watcher.error.connect(pet.react)
+    watcher.start()
+    app.aboutToQuit.connect(watcher.shutdown)   # 退出时等后台线程收尾
+    app.aboutToQuit.connect(chat.shutdown)
 
     # 注意：greet() 会 emit ai_greet_requested，必须放在上面 connect 之后调用，
     # 否则启动时的 AI 问候没人接收（这个顺序踩过一次坑）。

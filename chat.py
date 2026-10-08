@@ -213,6 +213,12 @@ class ChatWindow(QWidget):
             self.pet._be_happy(1.5)
             self.pet.bubble(reply[:120], self.pet.bubble_seconds + 4)
 
+    def shutdown(self):
+        """程序退出时收尾：等流式请求线程结束，避免 QThread 被销毁时还在跑。"""
+        worker = self._worker
+        if worker is not None and worker.isRunning():
+            worker.wait(3000)
+
     # ---------- 拖动 ----------
     def mousePressEvent(self, e):
         if e.button() == Qt.LeftButton:
