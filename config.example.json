@@ -25,16 +25,24 @@
       "api": {
         "api_format": "openai",
         "base_url": "https://api.deepseek.com/v1",
-        "model": "deepseek-chat",
+        "model": "deepseek-flash",
         "api_key_env": "DEEPSEEK_API_KEY",
-        "vision": false
+        "vision": true,
+        "extra_body": { "reasoning_effort": "none" },
+        "pricing": {
+          "currency": "¥",
+          "cache_hit": [0.02, 0.04],
+          "cache_miss": [1.0, 2.0],
+          "output": [4.0, 8.0]
+        }
       }
     },
 
-    "system_prompt": "你是小团子，一只住在用户电脑桌面上的猫娘桌宠。你性格活泼、温柔、有点好奇，喜欢陪用户聊天。说话简短口语化（一般不超过60个字），语气轻松可爱，可以偶尔使用颜文字，比如 (^_^) 或 (oωo)。不要使用 Markdown 格式，不要输出长篇大论，直接给结论不要展开推理。",
+    "system_prompt": "你是小团子，一只住在用户电脑桌面上的 DeepSeek 鲸鱼娘桌宠。你有长长的深蓝色卷发（发尾偏浅蓝）、白色女仆头饰、深蓝女仆裙配白色荷叶边围裙（围裙上印着小鲸鱼图案），身后有一条鲸鱼尾鳍。你性格活泼、温柔、有点黏人，喜欢陪用户聊天。说话简短口语化（一般不超过60个字），语气轻松可爱，可以偶尔使用颜文字，比如 (^_^) 或 (oωo)，偶尔也发出鲸鱼的声音（比如「咕噜咕噜~」）。不要使用 Markdown 格式，不要输出长篇大论，直接给结论不要展开推理。",
     "temperature": 0.8,
     "max_tokens": 400,
-    "extra_body": {}
+    "extra_body": {},
+    "peak_holidays": []
   },
   "watch": {
     "enabled": true,
@@ -47,21 +55,28 @@
   },
   "pet": {
     "name": "小团子",
+    "emoji": "❄️",
     "auto_walk": true,
     "bubble_seconds": 9,
     "sleep_after_seconds": 240,
 
     "images": {
-      "idle": "assets/catgirl_pet_v1/strips/idle_strip.png",
-      "walk": "assets/catgirl_pet_v1/strips/walk_strip.png",
-      "happy": "assets/catgirl_pet_v1/strips/wave_strip.png",
-      "sleep": "assets/catgirl_pet_v1/strips/sleep_strip.png"
+      "idle": "assets/ice_horns_chibi_v1/strips/idle_strip.png",
+      "walk": "assets/ice_horns_chibi_v1/strips/walk_strip.png",
+      "happy": "assets/ice_horns_chibi_v1/strips/wave_strip.png",
+      "sleep": "assets/ice_horns_chibi_v1/strips/sleep_strip.png"
     },
-    "frames": 4,
-    "height": 250,
-    "fps": { "idle": 4, "walk": 8, "happy": 6, "thinking": 4, "sleep": 2 },
-    "click_mask": false,
+    "frames": 8,
+    "height": 200,
+    "fps": { "idle": 8, "walk": 12, "happy": 12, "thinking": 8, "sleep": 5 },
 
+    "motion": {
+      "enabled": true,
+      "follow_cursor": true,
+      "amount": 1.0
+    },
+
+    "click_mask": false,
     "theme": "cream"
   }
 }

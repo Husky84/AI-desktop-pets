@@ -1,0 +1,12 @@
+{
+  "format": "png-sequence",
+  "frame_width": 320,
+  "frame_height": 320,
+  "frame_count_per_action": 8,
+  "actions": {
+    "idle": {"directory": "frames/idle", "strip": "strips/idle_strip.png", "fps": 8, "loop": true},
+    "walk": {"directory": "frames/walk", "strip": "strips/walk_strip.png", "fps": 12, "loop": true},
+    "wave": {"directory": "frames/wave", "strip": "strips/wave_strip.png", "fps": 12, "loop": true},
+    "sleep": {"directory": "frames/sleep", "strip": "strips/sleep_strip.png", "fps": 4, "loop": true}
+  }
+}

@@ -12,6 +12,9 @@ env/
 # 首次运行会自动从 config.example.json 生成 config.json
 config.json
 
+# 用量/费用记录（含你自己的消费数据，不必入库）
+usage.json
+
 # ---- 运行时产物 / 临时文件 ----
 *.log
 *.out

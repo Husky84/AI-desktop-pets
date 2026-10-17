@@ -22,6 +22,7 @@ from PySide6.QtWidgets import QApplication
 from ai_client import LocalAIClient
 from chat import ChatWindow
 from pet import PetWindow
+from usage import UsageTracker
 from watcher import ScreenWatcher
 
 DEFAULT_CFG = {
@@ -31,13 +32,14 @@ DEFAULT_CFG = {
         "model": "qwen2.5:7b",
         "api_key": "",
         "fallbacks": [],
-        "system_prompt": "你是小团子，一只住在用户电脑桌面上的小猫桌宠，说话简短可爱。",
+        "system_prompt": "你是小团子，一只住在用户电脑桌面上的 DeepSeek 鲸鱼娘桌宠，说话简短可爱。",
         "temperature": 0.8,
         "max_tokens": 400,
         "extra_body": {},
     },
     "pet": {
         "name": "小团子",
+        "emoji": "🐳",
         "auto_walk": True,
         "bubble_seconds": 9,
         "sleep_after_seconds": 240,
@@ -186,8 +188,19 @@ def main():
     pet = PetWindow(cfg)
     client = LocalAIClient(cfg["ai"])
     pet.set_client(client)
-    chat = ChatWindow(pet, client, cfg["pet"].get("name", "小团子"))
+
+    # ---- 用量 / 费用统计（云端 API 按官方价计费，本地模型记 0）----
+    usage_path = (Path(CONFIG_PATH).parent / "usage.json") if CONFIG_PATH else None
+    tracker = UsageTracker(usage_path)
+    client.on_usage = tracker.record
+    pet.set_tracker(tracker)
+
+    chat = ChatWindow(pet, client, cfg["pet"].get("name", "小团子"),
+                      cfg["pet"].get("emoji", "🐳"))
     pet.set_chat_window(chat)
+    tracker.changed.connect(chat.update_usage)
+    pet.usage_requested.connect(lambda: chat.show_usage(tracker.summary_text()))
+    chat.update_usage(tracker.chat_line())
 
     pet.show()
 

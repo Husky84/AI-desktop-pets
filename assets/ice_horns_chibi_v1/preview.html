@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>冰蓝角色 · 动作预览</title>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:32px;background:#eaf2f7;color:#24374d;font:16px system-ui,sans-serif}main{max-width:1100px;margin:auto}h1{font-size:26px;margin:0 0 10px}p{line-height:1.6}section{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;margin:24px 0}article{background:#fff;border:1px solid #d2dfeb;border-radius:16px;overflow:hidden}canvas{display:block;width:100%;height:auto;background-color:#fff;background-image:linear-gradient(45deg,#dce5ed 25%,transparent 25%),linear-gradient(-45deg,#dce5ed 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#dce5ed 75%),linear-gradient(-45deg,transparent 75%,#dce5ed 75%);background-size:24px 24px;background-position:0 0,0 12px,12px -12px,-12px 0}h2{font-size:17px;margin:16px}label{display:inline-flex;gap:12px;align-items:center;margin:12px 20px 0 0}button{padding:8px 18px;border:1px solid #a9bed0;border-radius:8px;background:white;cursor:pointer}.note{font-size:14px;color:#516780}.error{color:#a11}
+</style>
+<main><h1>冰蓝角色 · 桌宠动作预览</h1><p>4 组动作，每组 8 张原始帧。棋盘格用来检查透明背景。</p>
+<label>播放速度 <input id="fps" type="range" min="2" max="15" value="10"><output id="speed">10 FPS</output></label><button id="pause">暂停</button>
+<section id="cards"></section><p class="note">这是 PNG 序列预览。Live2D 文件夹中的 PSD 是拆件草稿，尚未绑定为模型。</p><p id="error" class="error"></p></main>
+<script>
+const actions=[['idle','待机 / 眨眼'],['walk','行走'],['wave','挥手'],['sleep','睡眠呼吸']];
+const items=[];let paused=false,elapsed=0,last=performance.now();
+for(const [name,label] of actions){const a=document.createElement('article'),h=document.createElement('h2'),c=document.createElement('canvas'),im=new Image();h.textContent=label;c.width=c.height=320;a.append(c,h);document.querySelector('#cards').append(a);im.src=`strips/${name}_strip.png`;im.onerror=()=>document.querySelector('#error').textContent='图片加载失败，请将 preview.html 和 strips 文件夹一起保留。';items.push({c,im});}
+const range=document.querySelector('#fps');range.oninput=()=>document.querySelector('#speed').textContent=range.value+' FPS';
+document.querySelector('#pause').onclick=e=>{paused=!paused;e.target.textContent=paused?'继续':'暂停';};
+function draw(t){if(!paused)elapsed+=Math.min(100,t-last);last=t;const frame=Math.floor(elapsed*Number(range.value)/1000)%8;for(const {c,im} of items){const ctx=c.getContext('2d');ctx.clearRect(0,0,320,320);if(im.complete&&im.naturalWidth)ctx.drawImage(im,frame*320,0,320,320,0,0,320,320);}requestAnimationFrame(draw);}requestAnimationFrame(draw);
+</script>
+</html>

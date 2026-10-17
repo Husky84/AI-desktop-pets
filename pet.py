@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""宠物窗口：透明、无边框、置顶的小猫。
+"""宠物窗口：透明、无边框、置顶的桌宠。
 
 - 程序化绘制（无需图片素材），支持 idle / walk / happy / thinking / sleep 五种状态
 - 头顶气泡显示 AI 的简短回复
@@ -146,6 +146,7 @@ class PetWindow(QWidget):
     ai_greet_requested = Signal()
     ai_greet_reply = Signal(str)
     profile_changed = Signal(str)   # 切换了模型来源（本地 / 云端 API）
+    usage_requested = Signal()      # 想看用量与花费明细
 
     def __init__(self, cfg: dict):
         super().__init__()
@@ -170,6 +171,19 @@ class PetWindow(QWidget):
             except (TypeError, ValueError):
                 pass
         self._sleep_start = None
+
+        # 活体动效（呼吸/摇摆/跟手）：不是真 Live2D，但能让静止序列帧"活"起来
+        m = pet_cfg.get("motion") or {}
+        try:
+            amount = float(m.get("amount", 1.0))
+        except (TypeError, ValueError):
+            amount = 1.0
+        self.motion = {
+            "enabled": bool(m.get("enabled", True)),
+            "follow_cursor": bool(m.get("follow_cursor", True)),
+            "amount": amount,
+        }
+        self._tilt = 0.0
 
         self.chat_win = None
         self.client = None
@@ -234,7 +248,7 @@ class PetWindow(QWidget):
         self.sleep_until = time.time() + self.sleep_after
         if self.mood == "sleep":
             self.mood = "idle"
-            self.bubble("喵~ 我醒啦 (oωo)")
+            self.bubble("呜~ 我醒啦 (oωo)")
 
     def set_mood(self, mood):
         self.mood = mood
@@ -263,6 +277,7 @@ class PetWindow(QWidget):
     def _tick(self):
         self.t += self.TICK_MS / 1000
         now = time.time()
+        self._update_tilt()
 
         # 眨眼
         if now > self.blink_until and random.random() < 0.02:
@@ -319,6 +334,18 @@ class PetWindow(QWidget):
     def set_watcher(self, watcher):
         """接入屏幕观察者（可以为 None，表示不开启该功能）。"""
         self.watcher = watcher
+
+    def set_tracker(self, tracker):
+        """接入用量/费用统计（可以为 None）。"""
+        self.tracker = tracker
+
+    def show_usage(self):
+        """菜单：查看 token 用量与花费。"""
+        self._touch()
+        if getattr(self, "tracker", None) is None:
+            self.bubble("还没有用量记录哦~")
+            return
+        self.usage_requested.emit()
 
     def greet(self):
         """启动时的问候。"""
@@ -434,7 +461,7 @@ class PetWindow(QWidget):
         self._click_timer.stop()
         self._touch()
         self._be_happy(2.0)
-        self.bubble("喵呜~ 好痒 (^_^)")
+        self.bubble("呜哇~ 好痒 (^_^)")
 
     def contextMenuEvent(self, e):
         self._touch()
@@ -460,6 +487,8 @@ class PetWindow(QWidget):
                     act.setCheckable(True)
                     act.setChecked(name == self.client.active_profile)
                     act.triggered.connect(lambda _=False, n=name: self.switch_profile(n))
+        if getattr(self, "tracker", None) is not None:
+            menu.addAction("💰 用量与花费", self.show_usage)
         if not self._sprites:
             theme_menu = menu.addMenu("🎨 配色（代码小猫）")
             for key, label in (("cream", "🍦 奶油"), ("mint", "🌿 薄荷"),
@@ -571,7 +600,12 @@ class PetWindow(QWidget):
 
     def _draw_sprites(self, p, cx, cy):
         """画自定义序列帧：素材已在加载时裁边、居中、统一缩放，
-        这里只需按当前状态的帧率取帧，并把底边对齐到地面 (cy + 50)。"""
+        这里按当前状态的帧率取帧，底边对齐到地面 (cy + 50)。
+
+        另外叠一层"活体动效"（呼吸 / 摇摆 / 跟手 / 反应时轻微挤压）。
+        注意：这不是真 Live2D（没有网格变形），只是整体变换，
+        但静止的序列帧加上它之后会明显"活"起来。
+        """
         seq = self._pick_seq()
         if not seq:
             return
@@ -586,7 +620,44 @@ class PetWindow(QWidget):
             self._sleep_start = None
             idx = int(self.t * fps) % n
         pix = seq[idx]
-        p.drawPixmap(QPointF(cx - pix.width() / 2.0, cy + 50 - pix.height()), pix)
+        bottom = cy + 50
+
+        motion = self.motion
+        if not motion.get("enabled", True):
+            p.drawPixmap(QPointF(cx - pix.width() / 2.0, bottom - pix.height()), pix)
+            return
+
+        amt = motion.get("amount", 1.0)
+        breath = math.sin(self.t * 1.7)                     # 呼吸
+        rot = (0.9 * math.sin(self.t * 0.9) + self._tilt) * amt   # 自动摇摆 + 跟手
+        squash = 0.0
+        if self.mood == "happy":
+            squash = 0.022 * math.sin(self.t * 9) * amt     # 开心时轻轻弹一下
+        elif self.mood == "sleep":
+            breath = math.sin(self.t * 0.8)                 # 睡觉呼吸更慢
+        sx = 1.0 + 0.006 * breath * amt - squash
+        sy = 1.0 + 0.012 * breath * amt + squash
+
+        p.save()
+        p.translate(cx, bottom)                             # 以脚底为支点
+        p.rotate(rot)
+        p.scale(sx, sy)
+        p.drawPixmap(QPointF(-pix.width() / 2.0, -pix.height()), pix)
+        p.restore()
+
+    def _update_tilt(self):
+        """让角色朝鼠标方向微微歪头（幅度很小，3° 以内）。"""
+        if not self.motion.get("follow_cursor", True):
+            self._tilt += (0.0 - self._tilt) * 0.12
+            return
+        try:
+            from PySide6.QtGui import QCursor
+            cur = QCursor.pos()
+            center_x = self.x() + self.W / 2.0
+            target = max(-2.4, min(2.4, (cur.x() - center_x) / 300.0))
+        except Exception:  # noqa: BLE001
+            target = 0.0
+        self._tilt += (target - self._tilt) * 0.12          # 缓动，避免抖动
 
     def _draw_cat(self, p, cx, cy, r):
         pal = PALETTES.get(self.theme, PALETTES["cream"])

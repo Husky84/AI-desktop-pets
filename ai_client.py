@@ -39,12 +39,19 @@ class _Endpoint:
         self.extra_body = dict(cfg.get("extra_body") or {})
         self.temperature = cfg.get("temperature")
         self.max_tokens = cfg.get("max_tokens")
+        self.pricing = dict(cfg.get("pricing") or {})   # 该来源的价格表（可选）
+        self.name = str(cfg.get("_profile", "") or "")  # 来源名，记账用
 
     def label(self):
         return f"{self.base_url} [{self.model}]"
 
     def proxies(self):
         return {"http": self.proxy, "https": self.proxy} if self.proxy else None
+
+    def is_loopback(self):
+        """本地服务算免费（不参与费用统计，但 token 照记）。"""
+        host = self.base_url.split("//")[-1].split("/")[0].split(":")[0].lower()
+        return host in ("127.0.0.1", "localhost", "::1", "0.0.0.0", "[::1]")
 
 
 class _ThinkFilter:
@@ -107,6 +114,10 @@ class LocalAIClient:
         self.extra_body = dict(ai_cfg.get("extra_body") or {})
         self.session = requests.Session()
 
+        # 用量记账回调：fn(info) —— 由 main.py 接到 UsageTracker 上
+        self.on_usage = None
+        self.peak_holidays = list(ai_cfg.get("peak_holidays") or [])
+
         # ---- 模型来源（profiles）----
         self.profiles = self._build_profiles(ai_cfg)
         active = str(ai_cfg.get("active") or "").strip()
@@ -150,7 +161,14 @@ class LocalAIClient:
             merged = dict(p)               # 继承该来源的 api_format / api_key 等
             merged.update(fb or {})
             raw.append(merged)
-        return [_Endpoint(c) for c in raw if str(c.get("base_url", "")).strip()]
+        eps = []
+        for c in raw:
+            if not str(c.get("base_url", "")).strip():
+                continue
+            c = dict(c)
+            c["_profile"] = name           # 记账时要区分来源
+            eps.append(_Endpoint(c))
+        return eps
 
     def _load_endpoints(self, name):
         self.endpoints = self._build_endpoint_list(name)
@@ -311,6 +329,7 @@ class LocalAIClient:
             },
         }
         raw_parts = []
+        usage = None
         with self.session.post(ep.base_url + "/api/chat", json=body, stream=True,
                                timeout=(10, None), headers=self._headers(ep),
                                proxies=ep.proxies()) as r:
@@ -324,8 +343,15 @@ class LocalAIClient:
                     raw_parts.append(token)
                     flt.feed(token)
                 if data.get("done"):
+                    # Ollama 在最后一个包里给 token 统计
+                    if data.get("prompt_eval_count") is not None:
+                        usage = {
+                            "prompt_tokens": data.get("prompt_eval_count") or 0,
+                            "completion_tokens": data.get("eval_count") or 0,
+                        }
                     break
         flt.flush()
+        self._report_usage(ep, usage)
         return self._visible(flt, raw_parts)
 
     # ---------- OpenAI 兼容 ----------
@@ -341,6 +367,7 @@ class LocalAIClient:
         body.update(self.extra_body)
         body.update(ep.extra_body)
         raw_parts = []
+        usage = None
         with self.session.post(ep.base_url + "/chat/completions", json=body, stream=True,
                                timeout=(10, None), headers=self._headers(ep),
                                proxies=ep.proxies()) as r:
@@ -355,6 +382,9 @@ class LocalAIClient:
                 if payload == "[DONE]":
                     break
                 chunk = json.loads(payload)
+                # 最后一个内容 chunk 会带上整轮的 usage（含缓存命中细分）
+                if chunk.get("usage"):
+                    usage = chunk["usage"]
                 choices = chunk.get("choices") or [{}]
                 delta = choices[0].get("delta") or {}
                 token = delta.get("content")
@@ -362,7 +392,26 @@ class LocalAIClient:
                     raw_parts.append(token)
                     flt.feed(token)
         flt.flush()
+        self._report_usage(ep, usage)
         return self._visible(flt, raw_parts)
+
+    # ---------- 用量上报 ----------
+    def _report_usage(self, ep, usage):
+        """把这一轮的 token 用量交给回调（由 UsageTracker 记账）。"""
+        if not usage or self.on_usage is None:
+            return
+        info = {
+            "profile": ep.name,
+            "model": ep.model,
+            "usage": usage,
+            "pricing": ep.pricing,
+            "free": ep.is_loopback(),
+            "holidays": self.peak_holidays,
+        }
+        try:
+            self.on_usage(info)
+        except Exception as e:  # noqa: BLE001  记账失败不能影响聊天
+            print(f"[桌宠] 用量记账失败（忽略）：{e}")
 
     @staticmethod
     def _visible(flt, raw_parts):

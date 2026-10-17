@@ -1,4 +1,4 @@
-# 🐱 AI 桌宠（小团子）
+# ❄️ AI 桌宠（小团子）
 
 一只住在桌面上的桌宠，可以接入**本地大模型**（Ollama / LM Studio / vLLM / llama.cpp / KVMem 等）。
 纯 Python + PySide6 实现：透明置顶窗口 + 序列帧动画 + 流式聊天。
@@ -15,6 +15,8 @@
 - 启动自动问候，聊天窗口内可一键"检测模型"
 - 自动适配 **高 DPI**（125% / 150% 缩放不发糊）
 - 👀 **屏幕感知**：知道你在写代码 / 看视频 / 摸鱼，会主动搭话（久坐、深夜、离开回来都会提醒）
+- 🤖 **模型来源可切换**：本地模型 / 云端 API 一键切换，还支持多端点自动回退
+- 💰 **用量与花费统计**：云端 API 按官方价（含缓存命中、高峰/空闲时段）算出每次对话花了多少钱
 
 ## 快速开始
 
@@ -80,6 +82,7 @@ python main.py --config 路径   # 或指定配置文件
 | `vision` | 这个来源能不能看图；`false` 时视觉层会自动改用它之外的来源 |
 | `proxy` | 该来源专用的代理，如 `http://127.0.0.1:7892`（默认直连）|
 | `extra_body` | 提供方特有参数，并入请求体（如关闭思考）|
+| `pricing` | 该来源的价格表（可选，用于费用统计；不填会用内置的 DeepSeek 官方价）|
 | `fallbacks` | 备用端点，主端点连不上自动切换并记住可用的那个 |
 
 ### 模型来源：本地 或 云端 API
@@ -118,7 +121,8 @@ python main.py --config 路径   # 或指定配置文件
 > 视觉层会自动关闭，只剩窗口标题的轻量陪伴。
 
 > 旧版的扁平写法（顶层直接写 `base_url` / `model` / `fallbacks`）仍然兼容，会被当成一个叫 `default` 的来源。
-| `pet.name` | 小猫的名字 |
+| `pet.name` | 桌宠的名字 |
+| `pet.emoji` | 聊天窗口标题里的表情，默认 `❄️` |
 | `pet.auto_walk` | 是否自动闲逛 |
 | `pet.bubble_seconds` | 气泡显示秒数 |
 | `pet.sleep_after_seconds` | 多久没互动就睡觉 |
@@ -126,8 +130,9 @@ python main.py --config 路径   # 或指定配置文件
 | `pet.images` | 按动作分文件的序列帧素材（推荐，见下） |
 | `pet.image` | 单条序列帧素材路径（所有状态共用；留空且无 images = 用代码画的小猫） |
 | `pet.frames` | 每条序列图含几帧（留空则按 宽 ÷ 高 自动推算） |
-| `pet.height` | 角色显示高度（像素），默认 250 |
-| `pet.fps` | 各状态播放帧率，如 `{"idle": 4, "walk": 8, "happy": 6, "sleep": 2}` |
+| `pet.height` | 角色显示高度（像素），默认 200 |
+| `pet.fps` | 各状态播放帧率，如 `{"idle": 8, "walk": 12, "happy": 12, "sleep": 5}` |
+| `pet.motion` | 活体动效：`{"enabled": true, "follow_cursor": true, "amount": 1.0}`。`amount` 调幅度（0 = 关）|
 | `pet.click_mask` | 是否给窗口加形状遮罩。Windows 默认 `false`（透明像素本来就点击穿透）；其他平台默认 `true` |
 
 > 💡 **关于清晰度**：程序会按屏幕缩放比例（125% / 150% 等）生成素材并渲染，
@@ -149,6 +154,46 @@ python main.py --config 路径   # 或指定配置文件
 | `watch.vision_interval_seconds` | 视觉点评间隔，默认 300 秒（独立定时器精确触发，最小 15 秒）|
 | `watch.max_width` | 截图缩放到的宽度，默认 1024（越小越快、越省显存） |
 | `watch.blacklist` | 追加的隐私关键词，命中的窗口不截图（内置已含密码/银行/支付等） |
+| `ai.peak_holidays` | 节假日列表（`["2026-10-01", ...]`），这些日期按空闲时段计价 |
+
+## 用量与花费（云端 API 才花钱）
+
+用本地模型时一切免费，程序仍会记录 token 数；切到云端 API（如 DeepSeek）后，
+每次请求的 token 用量和费用都会被记下来：
+
+- **聊天窗口底部**一行小字：`本次 ¥0.0013 · 累计 ¥0.0246 · 3.2k tokens`
+- **右键桌宠 → 💰 用量与花费**：看本次会话 / 今天 / 累计 / 分模型明细
+- 记录落在 `usage.json`（就在 `config.json` 旁边，已在 `.gitignore` 里，不会上传）
+
+计费不是简单"总 token × 单价"，而是按官方口径分三部分算：
+
+| 计费项 | 说明 |
+| --- | --- |
+| 输入（缓存命中） | 命中上下文缓存，便宜得多（flash 只要 0.02 元/百万）|
+| 输入（缓存未命中） | 1 元/百万（flash 空闲时段）|
+| 输出 | 4 元/百万（flash 空闲时段）|
+| **时段** | 北京时间**周一至周五 9:00–12:00、14:00–18:00 为高峰**（价格翻倍），其余时段及周末按半价 |
+
+内置的默认价（元/百万 tokens，2026-09 抓取，[官方价目表](https://api-docs.deepseek.com/zh-cn/quick_start/pricing/)）：
+
+| 模型 | 输入(命中) | 输入(未命中) | 输出 |
+| --- | ---: | ---: | ---: |
+| `deepseek-flash` | 0.02 / 0.04 | 1 / 2 | 4 / 8 |
+| `deepseek-v4-pro` | 0.15 / 0.30 | 4.5 / 9.0 | 13.5 / 27.0 |
+
+（每格是 `空闲 / 高峰`。官方随时可能调价，改 `config.json` 里该来源的 `pricing` 即可覆盖：
+
+```json
+"pricing": {
+  "currency": "¥",
+  "cache_hit":  [0.02, 0.04],
+  "cache_miss": [1.0, 2.0],
+  "output":     [4.0, 8.0]
+}
+```
+
+中国法定节假日官方按空闲计价，程序不知道节假日表，需要的话在
+`ai.peak_holidays` 里列出来。）
 
 ## 屏幕感知（它会知道你在干什么）
 
@@ -199,19 +244,19 @@ python main.py --config 路径   # 或指定配置文件
 准备**透明背景**的 PNG。用 AI 画图时可以这样描述：
 > "cute chibi catgirl, full body, front view, flat color, transparent background, no shadow"
 
-**A. 每个动作用各自的序列图（推荐，本项目的 `catgirl_pet_v1` 就是这么配的）**
+**A. 每个动作用各自的序列图（推荐，本项目的 `deepseek_whale_maid_v2` 就是这么配的）**
 
 ```json
 "pet": {
   "images": {
-    "idle": "assets/catgirl_pet_v1/strips/idle_strip.png",
-    "walk": "assets/catgirl_pet_v1/strips/walk_strip.png",
-    "happy": "assets/catgirl_pet_v1/strips/wave_strip.png",
-    "sleep": "assets/catgirl_pet_v1/strips/sleep_strip.png"
+    "idle": "assets/deepseek_whale_maid_v2/strips/idle_strip.png",
+    "walk": "assets/deepseek_whale_maid_v2/strips/walk_strip.png",
+    "happy": "assets/deepseek_whale_maid_v2/strips/wave_strip.png",
+    "sleep": "assets/deepseek_whale_maid_v2/strips/sleep_strip.png"
   },
-  "frames": 4,
-  "height": 250,
-  "fps": { "idle": 4, "walk": 8, "happy": 6, "thinking": 4, "sleep": 2 }
+  "frames": 8,
+  "height": 200,
+  "fps": { "idle": 8, "walk": 12, "happy": 12, "thinking": 8, "sleep": 8 }
 }
 ```
 
@@ -234,9 +279,34 @@ python main.py --config 路径   # 或指定配置文件
 
 ### 方式三：从零重画一套素材
 
-`assets/catgirl_pet_v1/` 里已有可直接参考的结构：
-`frames/<动作>/<动作>_NN.png` 单帧、`strips/<动作>_strip.png` 横向序列图、
-`catgirl_sprite_sheet.png` 4×4 总表。照着这个结构生成新素材即可。
+`assets/` 里有三套可直接参考的结构（单帧 + 横向序列图 + 总表）：
+
+| 素材 | 动作 | 每动作帧数 | 单帧画布 |
+| --- | --- | --- | --- |
+| `ice_horns_chibi_v1/`（当前默认）| idle / walk / wave / sleep | 8 | 320×320 |
+| `deepseek_whale_maid_v2/` | idle / walk / wave / sleep | 8 | 256×256 |
+| `catgirl_pet_v1/` | idle / walk / wave / sleep | 4 | 328×320 |
+
+目录约定：`frames/<动作>/<动作>_NN.png` 单帧、`strips/<动作>_strip.png` 横向序列图、
+`sprite_sheet.png`（或 `catgirl_sprite_sheet.png`）原始总表。
+生成新素材时注意：**背景要真透明**、每帧等宽、人物在各帧里尽量居中、底部基线一致——
+不满足也没关系，程序会自动裁边对齐，但素材规范效果更好。
+
+### 关于 Live2D
+
+**这个桌宠目前不使用 Live2D 运行时**，用的是 PNG 序列帧 + 一层"活体动效"
+（`pet.motion`：呼吸、自动摇摆、朝鼠标方向歪头、开心时轻微挤压）。
+效果上比纯序列帧有生气，但**不是 Live2D**：没有网格/变形器，发梢和衣摆不能独立摆动。
+
+要真正的 Live2D，需要先用 **Live2D Cubism Editor** 把素材绑定成模型：
+拆件 → 建 ArtMesh → 加旋转/曲面变形器与参数 → 导出 `.moc3` + `.model3.json` + 纹理，
+再在桌宠里接一个兼容渲染运行时（例如用 WebEngine 承载官方 Cubism Web SDK）。
+`.moc3` 是 Cubism 自有的二进制格式，**无法用脚本直接生成**，必须经过编辑器绑定。
+
+`assets/ice_horns_chibi_v1/live2d_preparation/` 里是这次尝试的中间产物：
+16 个拆分部件 + 拆件板 PSD + 绑定笔记（含建议参数与待精修项）。
+实测这些部件与 `neutral_front.png` 并非像素级一致（比例与上色各有差异），
+**无法用程序自动对齐**，需要在 Cubism Editor 里手工对齐后再绑定。
 
 ## 常见问题
 
@@ -264,7 +334,8 @@ python main.py --config 路径   # 或指定配置文件
 ├── tools/launch.py       # 启动器实际逻辑：依赖检查 / 安装 / 拉起主程序
 ├── config.example.json   # 配置模板（首次运行自动复制成 config.json）
 ├── pyproject.toml        # 打包元数据（pip install . 后可敲 ai-deskpet）
-├── assets/               # 形象素材（catgirl_pet_v1：4 动作 × 4 帧 + 总表）
+├── assets/               # 形象素材（ice_horns_chibi_v1 当前默认；另有 whale_maid_v2、catgirl_pet_v1）
+├── usage.py              # 云端 API 的 token 与费用统计（含 DeepSeek 峰谷/缓存价）
 ├── LICENSE               # MIT
 └── requirements.txt
 ```
@@ -283,5 +354,7 @@ python main.py --config 路径   # 或指定配置文件
 
 代码采用 [MIT License](LICENSE)。
 
-`assets/catgirl_pet_v1/` 下的角色素材由 AI 生成，仅供学习交流使用；
+`assets/` 下的角色素材由 AI 生成，仅供学习交流使用；
 若要商用请自行确认版权，或替换成你拥有版权的素材（见"换形象"一节）。
+其中 `deepseek_whale_maid_v2` 是以 DeepSeek 蓝鲸为灵感创作的同人角色，
+与深度求索公司无官方关联；公开发布时请自行评估品牌相关风险。

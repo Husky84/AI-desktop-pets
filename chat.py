@@ -34,11 +34,12 @@ class _Worker(QThread):
 class ChatWindow(QWidget):
     MAX_HISTORY = 10  # 只把最近 N 条发给模型（控制上下文长度）
 
-    def __init__(self, pet, client, name: str):
+    def __init__(self, pet, client, name: str, emoji: str = "🐳"):
         super().__init__()
         self.pet = pet
         self.client = client
         self.name = name
+        self.emoji = emoji
         self.history = []
         self._busy = False
         self._cur_label = None
@@ -56,7 +57,7 @@ class ChatWindow(QWidget):
 
         # 顶栏
         bar = QHBoxLayout()
-        title = QLabel(f"🐱 {name}")
+        title = QLabel(f"{self.emoji} {name}")
         title.setStyleSheet("font-size: 14px; font-weight: bold; color: #5a4632;")
         bar.addWidget(title)
         bar.addStretch()
@@ -103,6 +104,22 @@ class ChatWindow(QWidget):
         row.addWidget(self.input)
         row.addWidget(self.send_btn)
         root.addLayout(row)
+
+        # 底部用量/费用小字（本地模型显示 ¥0，云端显示实际花费）
+        self.usage_label = QLabel("")
+        self.usage_label.setStyleSheet("color: #9a8a76; font-size: 11px; padding: 0 2px;")
+        self.usage_label.setWordWrap(True)
+        root.addWidget(self.usage_label)
+
+    def update_usage(self, text):
+        """由 UsageTracker.changed 驱动（可能来自工作线程，Qt 会排队到界面线程）。"""
+        self.usage_label.setText(text or "")
+
+    def show_usage(self, text):
+        """在聊天区里展示一份用量明细。"""
+        self._add_bubble("assistant", text)
+        self.show()
+        self.raise_()
 
     @staticmethod
     def _btn_style():

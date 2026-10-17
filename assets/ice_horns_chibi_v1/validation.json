@@ -1,0 +1,20 @@
+{
+  "frame_count": 32,
+  "unique_frames_per_action": 8,
+  "actions": ["idle", "walk", "wave", "sleep"],
+  "frame_size": [320, 320],
+  "strip_size": [2560, 320],
+  "frame_format": "RGBA PNG",
+  "all_frames_have_transparent_margins": true,
+  "all_strips_match_individual_frames": true,
+  "psd_layers": 16,
+  "psd_size": [1254, 1254],
+  "psd_format": "PSD v1 RGB 8-bit with merged alpha",
+  "psd_layer_records_and_channel_sizes_checked": true,
+  "psd_composite_matches_parts_atlas": true,
+  "live2d_status": "Unrigged, unaligned parts board draft; requires cleanup and binding",
+  "cubism_import_tested": false,
+  "moc3_exported": false,
+  "cmo3_created": false,
+  "verification_script": "tools/verify.py"
+}
